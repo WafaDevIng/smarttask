@@ -1,0 +1,30 @@
+# Node
+node_modules/
+
+# Angular
+.angular/
+
+# Build
+dist/
+build/
+
+# Logs
+logs
+*.log
+
+# Environment
+.env
+
+# Coverage
+coverage/
+
+# Docker
+*.tar
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
