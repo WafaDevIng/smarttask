@@ -1,0 +1,115 @@
+version: '3.9'
+
+services:
+  # ── MongoDB ───────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: smarttask-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-secret}
+      MONGO_INITDB_DATABASE: smarttask
+    volumes:
+      - mongo_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - smarttask-net
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Redis ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: smarttask-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - smarttask-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Backend API ───────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: smarttask-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-secret}@mongodb:27017/smarttask?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-changeme_in_production}
+      JWT_EXPIRES_IN: 7d
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FRONTEND_URL: http://localhost
+    ports:
+      - "3000:3000"
+    networks:
+      - smarttask-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - backend_logs:/app/logs
+
+  # ── Frontend ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: smarttask-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - smarttask-net
+    depends_on:
+      - backend
+
+  # ── Mongo Express (dev only) ───────────────────────────────────
+  mongo-express:
+    image: mongo-express:latest
+    container_name: smarttask-mongo-ui
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER:-admin}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASS:-secret}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-secret}@mongodb:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "8081:8081"
+    networks:
+      - smarttask-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - dev
+
+volumes:
+  mongo_data:
+  redis_data:
+  backend_logs:
+
+networks:
+  smarttask-net:
+    driver: bridge
