@@ -1,0 +1,46 @@
+groups:
+  - name: smarttask_alerts
+    rules:
+      - alert: BackendDown
+        expr: up{job="smarttask-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SmartTask backend is down"
+          description: "Backend has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP error rate"
+          description: "Error rate > 5% for the last 5 minutes."
+
+      - alert: HighResponseTime
+        expr: http_request_duration_seconds_p99 > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API response time"
+          description: "P99 response time > 2s for the last 5 minutes."
+
+      - alert: MongoDBDown
+        expr: up{job="mongodb-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB is down"
+
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Container memory usage > 85%."
